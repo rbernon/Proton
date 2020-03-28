@@ -54,7 +54,7 @@ endif
 DOCKER_BASE = docker run --rm --init --privileged --cap-add=SYS_ADMIN --security-opt apparmor:unconfined \
                                     -v $(HOME):$(HOME) -v /tmp:/tmp \
                                     -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro  -v /etc/shadow:/etc/shadow:ro \
-                                    -w $(CURDIR) -e HOME=$(HOME) -u $(shell id -u):$(shell id -g) -h $(shell hostname) \
+                                    -w $(CURDIR) -e MAKEFLAGS -e HOME=$(HOME) -u $(shell id -u):$(shell id -g) -h $(shell hostname) \
                                     $(DOCKER_OPTS) \
                                     $(STEAMRT_IMAGE) /sbin/docker-init -sg --
 
@@ -66,8 +66,6 @@ TOOLMANIFEST_VDF_SRC := toolmanifest_noruntime.vdf
 endif
 
 ifneq ($(STEAMRT_IMAGE),)
-SUBMAKE_JOBS ?= 36
-MAKE := make -j$(SUBMAKE_JOBS)
 CONTAINER_SHELL := $(DOCKER_BASE) /bin/bash
 STEAM_RUNTIME_RUNSH := $(DOCKER_BASE)
 else
@@ -91,7 +89,7 @@ all32 $(MAKECMDGOALS64):
 ifeq ($(CONTAINER),)
 container-build: private SHELL := $(CONTAINER_SHELL)
 container-build:
-	+$(MAKE) -f $(firstword $(MAKEFILE_LIST)) $(MFLAGS) $(MAKEOVERRIDES) CONTAINER=1 $(MAKECMDGOALS32) $(MAKECMDGOALS64)
+	+$(MAKE) $(filter -j%,$(MAKEFLAGS)) -f $(firstword $(MAKEFILE_LIST)) $(MFLAGS) $(MAKEOVERRIDES) CONTAINER=1 $(MAKECMDGOALS32) $(MAKECMDGOALS64)
 .PHONY: container-build
 
 all32 $(MAKECMDGOALS32): container-build
