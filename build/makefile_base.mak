@@ -25,10 +25,8 @@ else # (Rest of the file is the else)
 # We expect the configure script to conditionally set the following:
 #   SRCDIR          - Path to source
 #   BUILD_NAME      - Name of the build for manifests etc.
-#   STEAMRT64_MODE  - 'docker' or '' for automatic Steam Runtime container
-#   STEAMRT64_IMAGE - Name of the image if mode is set
-#   STEAMRT32_MODE  - Same as above for 32-bit container (can be different type)
-#   STEAMRT32_IMAGE - Same as above for 32-bit container
+#   STEAMRT_IMAGE   - Name of the docker image to use for building
+#   STEAMRT_NAME    - Name of the steam runtime to build against (scout / soldier)
 
 ifeq ($(SRCDIR),)
 	foo := $(error SRCDIR not set, do not include makefile_base directly, run ./configure.sh to generate Makefile)
@@ -79,56 +77,29 @@ DOCKER_BASE = docker run --rm --init --privileged --cap-add=SYS_ADMIN --security
                                     -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro  -v /etc/shadow:/etc/shadow:ro \
                                     -w $(CURDIR) -e HOME=$(HOME) -e PATH=$(PATH) $(DOCKER_CCACHE_FLAG) -u $(shell id -u):$(shell id -g) -h $(shell hostname) \
                                     $(DOCKER_OPTS) \
-                                    $(SELECT_DOCKER_IMAGE) /sbin/docker-init -sg --
+                                    $(STEAMRT_IMAGE) /sbin/docker-init -sg --
 
-STEAM_RUNTIME_RUNSH :=
+STEAMRT_NAME ?= soldier
+ifeq ($(STEAMRT_NAME),soldier)
+TOOLMANIFEST_VDF_SRC := toolmanifest_runtime.vdf
+else
 TOOLMANIFEST_VDF_SRC := toolmanifest_noruntime.vdf
-
-# If STEAMRT64_MODE/STEAMRT32_MODE is set, set the nested SELECT_DOCKER_IMAGE to the _IMAGE variable and eval
-# DOCKER_BASE with it to create the CONTAINER_SHELL setting.
-ifeq ($(STEAMRT64_MODE),docker)
-	SELECT_DOCKER_IMAGE := $(STEAMRT64_IMAGE)
-	CONTAINER_SHELL64 := $(DOCKER_BASE) /bin/bash
-	STEAM_RUNTIME_RUNSH := $(DOCKER_BASE)
-	TOOLMANIFEST_VDF_SRC := toolmanifest_runtime.vdf
-else ifneq ($(STEAMRT64_MODE),)
-	foo := $(error Unrecognized STEAMRT64_MODE $(STEAMRT64_MODE))
-endif
-ifeq ($(STEAMRT32_MODE),docker)
-	SELECT_DOCKER_IMAGE := $(STEAMRT32_IMAGE)
-	CONTAINER_SHELL32 := $(DOCKER_BASE) /bin/bash
-else ifneq ($(STEAMRT32_MODE),)
-	foo := $(error Unrecognized STEAMRT32_MODE $(STEAMRT32_MODE))
 endif
 
-SELECT_DOCKER_IMAGE :=
-
-# If we're using containers to sub-invoke the various builds, jobserver won't work, have some silly auto-jobs
-# controllable by SUBMAKE_JOBS.  Not ideal.
-ifneq ($(CONTAINER_SHELL32)$(CONTAINER_SHELL64),)
-	SUBMAKE_JOBS ?= 36
-	MAKE := make -j$(SUBMAKE_JOBS)
+ifneq ($(STEAMRT_IMAGE),)
+SUBMAKE_JOBS ?= 36
+MAKE := make -j$(SUBMAKE_JOBS)
+CONTAINER_SHELL := $(DOCKER_BASE) /bin/bash
+STEAM_RUNTIME_RUNSH := $(DOCKER_BASE)
+else
+CONTAINER_SHELL := $(SHELL)
+STEAM_RUNTIME_RUNSH :=
 endif
 
-# Use default shell if no STEAMRT_ variables setup a container to invoke.  Commands will just run natively.
-ifndef CONTAINER_SHELL64
-	CONTAINER_SHELL64 := $(SHELL)
-endif
-ifndef CONTAINER_SHELL32
-	CONTAINER_SHELL32 := $(SHELL)
-endif
-
-# Helper to test
-.PHONY: test-container test-container32 test-container64
-test-container: test-container64 test-container32
-
-test-container64:
-	@echo >&2 ":: Testing 64-bit container"
-	$(CONTAINER_SHELL64) -c "echo Hello World!"
-
-test-container32:
-	@echo >&2 ":: Testing 32-bit container"
-	$(CONTAINER_SHELL32) -c "echo Hello World!"
+.PHONY: test-container
+test-container:
+	@echo >&2 ":: Testing container"
+	$(CONTAINER_SHELL) -c "echo Hello World!"
 
 # Many of the configure steps below depend on the makefile itself, such that they are dirtied by changing the recipes
 # that create them.  This can be annoying when working on the makefile, building with NO_MAKEFILE_DEPENDENCY=1 disables
@@ -477,11 +448,11 @@ redist: dist | $(filter-out dist deploy install redist,$(MAKECMDGOALS))
 
 .PHONY: module32 module64 module
 
-module32: SHELL = $(CONTAINER_SHELL32)
+module32: SHELL = $(CONTAINER_SHELL)
 module32:
 	+$(MAKE) -C $(WINE_OBJ32)/dlls/$(module)
 
-module64: SHELL = $(CONTAINER_SHELL64)
+module64: SHELL = $(CONTAINER_SHELL)
 module64:
 	+$(MAKE) -C $(WINE_OBJ64)/dlls/$(module)
 
@@ -511,7 +482,7 @@ GST_ORC_CONFIGURE_FILES32 := $(GST_ORC_OBJ32)/build.ninja
 GST_ORC_CONFIGURE_FILES64 := $(GST_ORC_OBJ64)/build.ninja
 
 # 64-bit configure.  Remove coredata file if already configured (due to e.g. makefile changing)
-$(GST_ORC_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL64)
+$(GST_ORC_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL)
 $(GST_ORC_CONFIGURE_FILES64): $(MAKEFILE_DEP) | $(GST_ORC_OBJ64)
 	if [ -e "$(abspath $(GST_ORC_OBJ64))"/build.ninja ]; then \
 		rm -f "$(abspath $(GST_ORC_OBJ64))"/meson-private/coredata.dat; \
@@ -522,7 +493,7 @@ $(GST_ORC_CONFIGURE_FILES64): $(MAKEFILE_DEP) | $(GST_ORC_OBJ64)
 		meson --prefix="$(abspath $(TOOLS_DIR64))" --libdir="lib" $(GST_ORC_MESON_ARGS) $(MESON_STRIP_ARG) "$(abspath $(GST_ORC_OBJ64))"
 
 # 32-bit configure.  Remove coredata file if already configured (due to e.g. makefile changing)
-$(GST_ORC_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL32)
+$(GST_ORC_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL)
 $(GST_ORC_CONFIGURE_FILES32): $(MAKEFILE_DEP) | $(GST_ORC_OBJ32)
 	if [ -e "$(abspath $(GST_ORC_OBJ32))"/build.ninja ]; then \
 		rm -f "$(abspath $(GST_ORC_OBJ32))"/meson-private/coredata.dat; \
@@ -551,14 +522,14 @@ gst_orc_configure32: $(GST_ORC_CONFIGURE_FILES32)
 
 gst_orc: gst_orc32 gst_orc64
 
-gst_orc64: SHELL = $(CONTAINER_SHELL64)
+gst_orc64: SHELL = $(CONTAINER_SHELL)
 gst_orc64: $(GST_ORC_CONFIGURE_FILES64)
 	PATH="$(abspath $(TOOLS_DIR64))/bin:$(PATH)" \
 	LD_LIBRARY_PATH="$(abspath $(TOOLS_DIR64))/lib:$(LD_LIBRARY_PATH)" \
 	ninja -C "$(GST_ORC_OBJ64)" install
 	cp -a $(TOOLS_DIR64)/lib/liborc* $(DST_DIR)/lib64/
 
-gst_orc32: SHELL = $(CONTAINER_SHELL32)
+gst_orc32: SHELL = $(CONTAINER_SHELL)
 gst_orc32: $(GST_ORC_CONFIGURE_FILES32)
 	PATH="$(abspath $(TOOLS_DIR32))/bin:$(PATH)" \
 	LD_LIBRARY_PATH="$(abspath $(TOOLS_DIR32))/lib:$(LD_LIBRARY_PATH)" \
@@ -580,7 +551,7 @@ GSTREAMER_CONFIGURE_FILES32 := $(GSTREAMER_OBJ32)/build.ninja
 GSTREAMER_CONFIGURE_FILES64 := $(GSTREAMER_OBJ64)/build.ninja
 
 # 64-bit configure.  Remove coredata file if already configured (due to e.g. makefile changing)
-$(GSTREAMER_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL64)
+$(GSTREAMER_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL)
 $(GSTREAMER_CONFIGURE_FILES64): $(MAKEFILE_DEP) gst_orc64 | $(GSTREAMER_OBJ64)
 	if [ -e "$(abspath $(GSTREAMER_OBJ64))"/build.ninja ]; then \
 		rm -f "$(abspath $(GSTREAMER_OBJ64))"/meson-private/coredata.dat; \
@@ -591,7 +562,7 @@ $(GSTREAMER_CONFIGURE_FILES64): $(MAKEFILE_DEP) gst_orc64 | $(GSTREAMER_OBJ64)
 		meson --prefix="$(abspath $(TOOLS_DIR64))" --libdir="lib" $(GSTREAMER_MESON_ARGS) $(MESON_STRIP_ARG) --buildtype=release "$(abspath $(GSTREAMER_OBJ64))"
 
 # 32-bit configure.  Remove coredata file if already configured (due to e.g. makefile changing)
-$(GSTREAMER_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL32)
+$(GSTREAMER_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL)
 $(GSTREAMER_CONFIGURE_FILES32): $(MAKEFILE_DEP) gst_orc32 | $(GSTREAMER_OBJ32)
 	if [ -e "$(abspath $(GSTREAMER_OBJ32))"/build.ninja ]; then \
 		rm -f "$(abspath $(GSTREAMER_OBJ32))"/meson-private/coredata.dat; \
@@ -620,7 +591,7 @@ gstreamer_configure32: $(GSTREAMER_CONFIGURE_FILES32)
 
 gstreamer: gstreamer32 gstreamer64
 
-gstreamer64: SHELL = $(CONTAINER_SHELL64)
+gstreamer64: SHELL = $(CONTAINER_SHELL)
 gstreamer64: $(GSTREAMER_CONFIGURE_FILES64)
 	PATH="$(abspath $(TOOLS_DIR64))/bin:$(PATH)" \
 	LD_LIBRARY_PATH="$(abspath $(TOOLS_DIR64))/lib:$(LD_LIBRARY_PATH)" \
@@ -628,7 +599,7 @@ gstreamer64: $(GSTREAMER_CONFIGURE_FILES64)
 	cp -a $(TOOLS_DIR64)/lib/libgst* $(DST_DIR)/lib64/ && \
 	cp -a $(TOOLS_DIR64)/lib/gstreamer-1.0 $(DST_DIR)/lib64/
 
-gstreamer32: SHELL = $(CONTAINER_SHELL32)
+gstreamer32: SHELL = $(CONTAINER_SHELL)
 gstreamer32: $(GSTREAMER_CONFIGURE_FILES32)
 	PATH="$(abspath $(TOOLS_DIR32))/bin:$(PATH)" \
 	LD_LIBRARY_PATH="$(abspath $(TOOLS_DIR32))/lib:$(LD_LIBRARY_PATH)" \
@@ -672,7 +643,7 @@ GST_BASE_CONFIGURE_FILES32 := $(GST_BASE_OBJ32)/build.ninja
 GST_BASE_CONFIGURE_FILES64 := $(GST_BASE_OBJ64)/build.ninja
 
 # 64-bit configure.  Remove coredata file if already configured (due to e.g. makefile changing)
-$(GST_BASE_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL64)
+$(GST_BASE_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL)
 $(GST_BASE_CONFIGURE_FILES64): $(MAKEFILE_DEP) gstreamer64 | $(GST_BASE_OBJ64)
 	if [ -e "$(abspath $(GST_BASE_OBJ64))"/build.ninja ]; then \
 		rm -f "$(abspath $(GST_BASE_OBJ64))"/meson-private/coredata.dat; \
@@ -683,7 +654,7 @@ $(GST_BASE_CONFIGURE_FILES64): $(MAKEFILE_DEP) gstreamer64 | $(GST_BASE_OBJ64)
 		meson --prefix="$(abspath $(TOOLS_DIR64))" --libdir="lib" $(GST_BASE_MESON_ARGS) $(MESON_STRIP_ARG) --buildtype=release "$(abspath $(GST_BASE_OBJ64))"
 
 # 32-bit configure.  Remove coredata file if already configured (due to e.g. makefile changing)
-$(GST_BASE_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL32)
+$(GST_BASE_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL)
 $(GST_BASE_CONFIGURE_FILES32): $(MAKEFILE_DEP) gstreamer32 | $(GST_BASE_OBJ32)
 	if [ -e "$(abspath $(GST_BASE_OBJ32))"/build.ninja ]; then \
 		rm -f "$(abspath $(GST_BASE_OBJ32))"/meson-private/coredata.dat; \
@@ -712,7 +683,7 @@ gst_base_configure32: $(GST_BASE_CONFIGURE_FILES32)
 
 gst_base: gst_base32 gst_base64
 
-gst_base64: SHELL = $(CONTAINER_SHELL64)
+gst_base64: SHELL = $(CONTAINER_SHELL)
 gst_base64: $(GST_BASE_CONFIGURE_FILES64)
 	PATH="$(abspath $(TOOLS_DIR64))/bin:$(PATH)" \
 	LD_LIBRARY_PATH="$(abspath $(TOOLS_DIR64))/lib:$(LD_LIBRARY_PATH)" \
@@ -720,7 +691,7 @@ gst_base64: $(GST_BASE_CONFIGURE_FILES64)
 	cp -a $(TOOLS_DIR64)/lib/libgst* $(DST_DIR)/lib64/ && \
 	cp -a $(TOOLS_DIR64)/lib/gstreamer-1.0 $(DST_DIR)/lib64/
 
-gst_base32: SHELL = $(CONTAINER_SHELL32)
+gst_base32: SHELL = $(CONTAINER_SHELL)
 gst_base32: $(GST_BASE_CONFIGURE_FILES32)
 	PATH="$(abspath $(TOOLS_DIR32))/bin:$(PATH)" \
 	LD_LIBRARY_PATH="$(abspath $(TOOLS_DIR32))/lib:$(LD_LIBRARY_PATH)" \
@@ -788,7 +759,7 @@ GST_GOOD_CONFIGURE_FILES32 := $(GST_GOOD_OBJ32)/build.ninja
 GST_GOOD_CONFIGURE_FILES64 := $(GST_GOOD_OBJ64)/build.ninja
 
 # 64-bit configure.  Remove coredata file if already configured (due to e.g. makefile changing)
-$(GST_GOOD_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL64)
+$(GST_GOOD_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL)
 $(GST_GOOD_CONFIGURE_FILES64): $(MAKEFILE_DEP) gst_base64 | $(GST_GOOD_OBJ64)
 	if [ -e "$(abspath $(GST_GOOD_OBJ64))"/build.ninja ]; then \
 		rm -f "$(abspath $(GST_GOOD_OBJ64))"/meson-private/coredata.dat; \
@@ -799,7 +770,7 @@ $(GST_GOOD_CONFIGURE_FILES64): $(MAKEFILE_DEP) gst_base64 | $(GST_GOOD_OBJ64)
 		meson --prefix="$(abspath $(TOOLS_DIR64))" --libdir="lib" $(GST_GOOD_MESON_ARGS) $(MESON_STRIP_ARG) --buildtype=release "$(abspath $(GST_GOOD_OBJ64))"
 
 # 32-bit configure.  Remove coredata file if already configured (due to e.g. makefile changing)
-$(GST_GOOD_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL32)
+$(GST_GOOD_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL)
 $(GST_GOOD_CONFIGURE_FILES32): $(MAKEFILE_DEP) gst_base32 | $(GST_GOOD_OBJ32)
 	if [ -e "$(abspath $(GST_GOOD_OBJ32))"/build.ninja ]; then \
 		rm -f "$(abspath $(GST_GOOD_OBJ32))"/meson-private/coredata.dat; \
@@ -828,7 +799,7 @@ gst_good_configure32: $(GST_GOOD_CONFIGURE_FILES32)
 
 gst_good: gst_good32 gst_good64
 
-gst_good64: SHELL = $(CONTAINER_SHELL64)
+gst_good64: SHELL = $(CONTAINER_SHELL)
 gst_good64: $(GST_GOOD_CONFIGURE_FILES64)
 	PATH="$(abspath $(TOOLS_DIR64))/bin:$(PATH)" \
 	LD_LIBRARY_PATH="$(abspath $(TOOLS_DIR64))/lib:$(LD_LIBRARY_PATH)" \
@@ -836,7 +807,7 @@ gst_good64: $(GST_GOOD_CONFIGURE_FILES64)
 	cp -a $(TOOLS_DIR64)/lib/libgst* $(DST_DIR)/lib64/ && \
 	cp -a $(TOOLS_DIR64)/lib/gstreamer-1.0 $(DST_DIR)/lib64/
 
-gst_good32: SHELL = $(CONTAINER_SHELL32)
+gst_good32: SHELL = $(CONTAINER_SHELL)
 gst_good32: $(GST_GOOD_CONFIGURE_FILES32)
 	PATH="$(abspath $(TOOLS_DIR32))/bin:$(PATH)" \
 	LD_LIBRARY_PATH="$(abspath $(TOOLS_DIR32))/lib:$(LD_LIBRARY_PATH)" \
@@ -863,7 +834,7 @@ faudio: faudio32 faudio64
 FAUDIO_CONFIGURE_FILES32 := $(FAUDIO_OBJ32)/Makefile
 FAUDIO_CONFIGURE_FILES64 := $(FAUDIO_OBJ64)/Makefile
 
-$(FAUDIO_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL32)
+$(FAUDIO_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL)
 $(FAUDIO_CONFIGURE_FILES32): $(FAUDIO)/CMakeLists.txt $(MAKEFILE_DEP) gst_base32 | $(FAUDIO_OBJ32)
 	cd $(dir $@) && \
 		PKG_CONFIG_PATH=$(abspath $(TOOLS_DIR32))/lib/pkgconfig \
@@ -874,7 +845,7 @@ $(FAUDIO_CONFIGURE_FILES32): $(FAUDIO)/CMakeLists.txt $(MAKEFILE_DEP) gst_base32
 			-DCMAKE_INSTALL_PREFIX="$(abspath $(TOOLS_DIR32))" \
 			$(FAUDIO_CMAKE_FLAGS)
 
-$(FAUDIO_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL64)
+$(FAUDIO_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL)
 $(FAUDIO_CONFIGURE_FILES64): $(FAUDIO)/CMakeLists.txt $(MAKEFILE_DEP) gst_base64 | $(FAUDIO_OBJ64)
 	cd $(dir $@) && \
 		PKG_CONFIG_PATH=$(abspath $(TOOLS_DIR64))/lib/pkgconfig \
@@ -883,7 +854,7 @@ $(FAUDIO_CONFIGURE_FILES64): $(FAUDIO)/CMakeLists.txt $(MAKEFILE_DEP) gst_base64
 			-DCMAKE_INSTALL_PREFIX="$(abspath $(TOOLS_DIR64))" \
 			$(FAUDIO_CMAKE_FLAGS)
 
-faudio32: SHELL = $(CONTAINER_SHELL32)
+faudio32: SHELL = $(CONTAINER_SHELL)
 faudio32: $(FAUDIO_CONFIGURE_FILES32)
 	+$(MAKE) -C $(FAUDIO_OBJ32) VERBOSE=1
 	+$(MAKE) -C $(FAUDIO_OBJ32) install VERBOSE=1
@@ -891,7 +862,7 @@ faudio32: $(FAUDIO_CONFIGURE_FILES32)
 	cp -a $(TOOLS_DIR32)/lib/libFAudio* $(DST_DIR)/lib/
 	[ x"$(STRIP)" = x ] || $(STRIP) $(DST_DIR)/lib/libFAudio.so
 
-faudio64: SHELL = $(CONTAINER_SHELL64)
+faudio64: SHELL = $(CONTAINER_SHELL)
 faudio64: $(FAUDIO_CONFIGURE_FILES64)
 	+$(MAKE) -C $(FAUDIO_OBJ64) VERBOSE=1
 	+$(MAKE) -C $(FAUDIO_OBJ64) install VERBOSE=1
@@ -917,7 +888,7 @@ jxrlib: jxrlib32 jxrlib64
 JXRLIB_CONFIGURE_FILES32 := $(JXRLIB_OBJ32)/Makefile
 JXRLIB_CONFIGURE_FILES64 := $(JXRLIB_OBJ64)/Makefile
 
-$(JXRLIB_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL32)
+$(JXRLIB_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL)
 $(JXRLIB_CONFIGURE_FILES32): $(JXRLIB)/CMakeLists.txt $(MAKEFILE_DEP) | $(JXRLIB_OBJ32)
 	cd $(dir $@) && \
 		CC="$(CC32)" \
@@ -927,7 +898,7 @@ $(JXRLIB_CONFIGURE_FILES32): $(JXRLIB)/CMakeLists.txt $(MAKEFILE_DEP) | $(JXRLIB
 			-DCMAKE_INSTALL_PREFIX="$(abspath $(TOOLS_DIR32))" \
 			$(JXRLIB_CMAKE_FLAGS)
 
-$(JXRLIB_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL64)
+$(JXRLIB_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL)
 $(JXRLIB_CONFIGURE_FILES64): $(JXRLIB)/CMakeLists.txt $(MAKEFILE_DEP) | $(JXRLIB_OBJ64)
 	cd $(dir $@) && \
 		CFLAGS="$(OPTIMIZE_FLAGS)" \
@@ -935,7 +906,7 @@ $(JXRLIB_CONFIGURE_FILES64): $(JXRLIB)/CMakeLists.txt $(MAKEFILE_DEP) | $(JXRLIB
 			-DCMAKE_INSTALL_PREFIX="$(abspath $(TOOLS_DIR64))" \
 			$(JXRLIB_CMAKE_FLAGS)
 
-jxrlib32: SHELL = $(CONTAINER_SHELL32)
+jxrlib32: SHELL = $(CONTAINER_SHELL)
 jxrlib32: $(JXRLIB_CONFIGURE_FILES32)
 	+$(MAKE) -C $(JXRLIB_OBJ32) VERBOSE=1
 	+$(MAKE) -C $(JXRLIB_OBJ32) install VERBOSE=1
@@ -945,7 +916,7 @@ jxrlib32: $(JXRLIB_CONFIGURE_FILES32)
 	[ x"$(STRIP)" = x ] || $(STRIP) $(DST_DIR)/lib/libjpegxr.so
 	[ x"$(STRIP)" = x ] || $(STRIP) $(DST_DIR)/lib/libjxrglue.so
 
-jxrlib64: SHELL = $(CONTAINER_SHELL64)
+jxrlib64: SHELL = $(CONTAINER_SHELL)
 jxrlib64: $(JXRLIB_CONFIGURE_FILES64)
 	+$(MAKE) -C $(JXRLIB_OBJ64) VERBOSE=1
 	+$(MAKE) -C $(JXRLIB_OBJ64) install VERBOSE=1
@@ -982,7 +953,7 @@ LSTEAMCLIENT_CONFIGURE_FILES32 := $(LSTEAMCLIENT_OBJ32)/Makefile
 LSTEAMCLIENT_CONFIGURE_FILES64 := $(LSTEAMCLIENT_OBJ64)/Makefile
 
 # 64bit-configure
-$(LSTEAMCLIENT_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL64)
+$(LSTEAMCLIENT_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL)
 $(LSTEAMCLIENT_CONFIGURE_FILES64): $(LSTEAMCLIENT64) $(MAKEFILE_DEP) | $(LSTEAMCLIENT_OBJ64) $(WINEMAKER)
 	cd $(dir $@) && \
 		$(WINEMAKER) --nosource-fix --nolower-include --nodlls --nomsvcrt \
@@ -1001,7 +972,7 @@ $(LSTEAMCLIENT_CONFIGURE_FILES64): $(LSTEAMCLIENT64) $(MAKEFILE_DEP) | $(LSTEAMC
 		echo >> ./Makefile 'lsteamclient_dll_LDFLAGS := -ldl $$(patsubst %.spec,$$(SRCDIR)/%.spec,$$(lsteamclient_dll_LDFLAGS))'
 
 # 32-bit configure
-$(LSTEAMCLIENT_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL32)
+$(LSTEAMCLIENT_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL)
 $(LSTEAMCLIENT_CONFIGURE_FILES32): $(LSTEAMCLIENT32) $(MAKEFILE_DEP) | $(LSTEAMCLIENT_OBJ32) $(WINEMAKER)
 	cd $(dir $@) && \
 		$(WINEMAKER) --nosource-fix --nolower-include --nodlls --nomsvcrt --wine32 \
@@ -1035,7 +1006,7 @@ lsteamclient_configure32: $(LSTEAMCLIENT_CONFIGURE_FILES32)
 
 lsteamclient: lsteamclient32 lsteamclient64
 
-lsteamclient64: SHELL = $(CONTAINER_SHELL64)
+lsteamclient64: SHELL = $(CONTAINER_SHELL)
 lsteamclient64: $(LSTEAMCLIENT_CONFIGURE_FILES64) | $(WINE_BUILDTOOLS64) $(filter $(MAKECMDGOALS),wine64 wine32 wine)
 	+env PATH="$(abspath $(TOOLS_DIR64))/bin:$(PATH)" CXXFLAGS="-Wno-attributes $(COMMON_FLAGS) -std=gnu++11 -g" CFLAGS="$(COMMON_FLAGS) -g" \
 		$(MAKE) -C $(LSTEAMCLIENT_OBJ64)
@@ -1043,7 +1014,7 @@ lsteamclient64: $(LSTEAMCLIENT_CONFIGURE_FILES64) | $(WINE_BUILDTOOLS64) $(filte
 	mkdir -pv $(DST_DIR)/lib64/wine/
 	cp -af $(LSTEAMCLIENT_OBJ64)/lsteamclient.dll.so $(DST_DIR)/lib64/wine/
 
-lsteamclient32: SHELL = $(CONTAINER_SHELL32)
+lsteamclient32: SHELL = $(CONTAINER_SHELL)
 lsteamclient32: $(LSTEAMCLIENT_CONFIGURE_FILES32) | $(WINE_BUILDTOOLS32) $(filter $(MAKECMDGOALS),wine64 wine32 wine)
 	+env PATH="$(abspath $(TOOLS_DIR32))/bin:$(PATH)" LDFLAGS="-m32" CXXFLAGS="-m32 -Wno-attributes $(COMMON_FLAGS) -std=gnu++11 -g" CFLAGS="-m32 $(COMMON_FLAGS) -g" \
 		$(MAKE) -C $(LSTEAMCLIENT_OBJ32)
@@ -1064,7 +1035,7 @@ $(STEAMEXE_SYN): $(STEAMEXE_SYN)/.created
 STEAMEXE_CONFIGURE_FILES := $(STEAMEXE_OBJ)/Makefile
 
 # 32-bit configure
-$(STEAMEXE_CONFIGURE_FILES): SHELL = $(CONTAINER_SHELL32)
+$(STEAMEXE_CONFIGURE_FILES): SHELL = $(CONTAINER_SHELL)
 $(STEAMEXE_CONFIGURE_FILES): $(STEAMEXE_SYN) $(MAKEFILE_DEP) | $(STEAMEXE_OBJ) $(WINEMAKER)
 	cd $(dir $@) && \
 		$(WINEMAKER) --nosource-fix --nolower-include --nodlls --wine32 \
@@ -1091,7 +1062,7 @@ GOAL_TARGETS_LIBS += steam
 
 steam_configure: $(STEAMEXE_CONFIGURE_FILES)
 
-steam: SHELL = $(CONTAINER_SHELL32)
+steam: SHELL = $(CONTAINER_SHELL)
 steam: $(STEAMEXE_CONFIGURE_FILES) | $(WINE_BUILDTOOLS32) $(filter $(MAKECMDGOALS),wine64 wine32 wine)
 	+env PATH="$(abspath $(TOOLS_DIR32))/bin:$(PATH)" LDFLAGS="-m32" CXXFLAGS="-std=gnu++11 -m32 -Wno-attributes $(COMMON_FLAGS) -g" CFLAGS="-m32 $(COMMON_FLAGS) -g" \
 		$(MAKE) -C $(STEAMEXE_OBJ)
@@ -1127,7 +1098,7 @@ WINE32_MAKE_ARGS := \
 	dlldir="$(abspath $(TOOLS_DIR32))/lib/wine"
 
 # 64bit-configure
-$(WINE_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL64)
+$(WINE_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL)
 $(WINE_CONFIGURE_FILES64): $(MAKEFILE_DEP) | faudio64 jxrlib64 gst_base64 $(WINE_OBJ64)
 	cd $(dir $@) && \
 		../$(WINE)/configure \
@@ -1147,7 +1118,7 @@ $(WINE_CONFIGURE_FILES64): $(MAKEFILE_DEP) | faudio64 jxrlib64 gst_base64 $(WINE
 			CROSSDEBUG=split-dwarf
 
 # 32-bit configure
-$(WINE_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL32)
+$(WINE_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL)
 $(WINE_CONFIGURE_FILES32): $(MAKEFILE_DEP) | faudio32 jxrlib32 gst_base32 $(WINE_OBJ32)
 	cd $(dir $@) && \
 		../$(WINE)/configure \
@@ -1189,7 +1160,7 @@ wine: wine32 wine64
 
 $(WINE_BUILDTOOLS64) $(WINE_OUT) wine64: wine64-intermediate
 
-wine64-intermediate: SHELL = $(CONTAINER_SHELL64)
+wine64-intermediate: SHELL = $(CONTAINER_SHELL)
 wine64-intermediate: $(WINE_CONFIGURE_FILES64)
 	+$(MAKE) -C $(WINE_OBJ64) $(WINE_COMMON_MAKE_ARGS)
 	+$(MAKE) -C $(WINE_OBJ64) $(WINE_COMMON_MAKE_ARGS) install-lib
@@ -1203,7 +1174,7 @@ wine64-intermediate: $(WINE_CONFIGURE_FILES64)
 ##   https://wiki.winehq.org/Packaging#WoW64_Workarounds
 $(WINE_BUILDTOOLS32) wine32: wine32-intermediate
 
-wine32-intermediate: SHELL = $(CONTAINER_SHELL32)
+wine32-intermediate: SHELL = $(CONTAINER_SHELL)
 wine32-intermediate: $(WINE_CONFIGURE_FILES32)
 	+$(MAKE) -C $(WINE_OBJ32) $(WINE_COMMON_MAKE_ARGS)
 	+$(MAKE) -C $(WINE_OBJ32) $(WINE_COMMON_MAKE_ARGS) install-lib
@@ -1234,7 +1205,7 @@ $(VRCLIENT32): $(VRCLIENT) $(MAKEFILE_DEP)
 	mv $(VRCLIENT32)/vrclient/vrclient_x64.spec $(VRCLIENT32)/vrclient/vrclient.spec
 
 # 64bit-configure
-$(VRCLIENT_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL64)
+$(VRCLIENT_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL)
 $(VRCLIENT_CONFIGURE_FILES64): $(MAKEFILE_DEP) $(VRCLIENT) $(VRCLIENT)/vrclient_x64 | $(VRCLIENT_OBJ64) $(WINEMAKER)
 	cd $(VRCLIENT) && \
 		$(WINEMAKER) --nosource-fix --nolower-include --nodlls --nomsvcrt \
@@ -1252,7 +1223,7 @@ $(VRCLIENT_CONFIGURE_FILES64): $(MAKEFILE_DEP) $(VRCLIENT) $(VRCLIENT)/vrclient_
 		echo >> $(abspath $(dir $@))/Makefile 'vrclient_x64_dll_LDFLAGS := -ldl $$(patsubst %.spec,$$(SRCDIR)/%.spec,$$(vrclient_x64_dll_LDFLAGS))'
 
 # 32-bit configure
-$(VRCLIENT_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL32)
+$(VRCLIENT_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL)
 $(VRCLIENT_CONFIGURE_FILES32): $(MAKEFILE_DEP) $(VRCLIENT32) | $(VRCLIENT_OBJ32) $(WINEMAKER)
 	$(WINEMAKER) --nosource-fix --nolower-include --nodlls --nomsvcrt \
 		--wine32 \
@@ -1285,7 +1256,7 @@ vrclient_configure64: $(VRCLIENT_CONFIGURE_FILES64)
 
 vrclient: vrclient32 vrclient64
 
-vrclient64: SHELL = $(CONTAINER_SHELL64)
+vrclient64: SHELL = $(CONTAINER_SHELL)
 vrclient64: $(VRCLIENT_CONFIGURE_FILES64) | $(WINE_BUILDTOOLS64) $(filter $(MAKECMDGOALS),wine64 wine32 wine)
 	+env CXXFLAGS="-Wno-attributes -std=c++0x $(COMMON_FLAGS) -g" CFLAGS="$(COMMON_FLAGS) -g" PATH="$(abspath $(TOOLS_DIR64))/bin:$(PATH)" \
 		$(MAKE) -C $(VRCLIENT_OBJ64)
@@ -1297,7 +1268,7 @@ vrclient64: $(VRCLIENT_CONFIGURE_FILES64) | $(WINE_BUILDTOOLS64) $(filter $(MAKE
 		cp -af ../$(VRCLIENT_OBJ64)/vrclient_x64.dll.so ../$(DST_DIR)/lib64/wine/ && \
 		cp -af ../$(VRCLIENT_OBJ64)/vrclient_x64.dll.fake ../$(DST_DIR)/lib64/wine/fakedlls/vrclient_x64.dll
 
-vrclient32: SHELL = $(CONTAINER_SHELL32)
+vrclient32: SHELL = $(CONTAINER_SHELL)
 vrclient32: $(VRCLIENT_CONFIGURE_FILES32) | $(WINE_BUILDTOOLS32) $(filter $(MAKECMDGOALS),wine64 wine32 wine)
 	+env LDFLAGS="-m32" CXXFLAGS="-m32 -Wno-attributes -std=c++0x $(COMMON_FLAGS) -g" CFLAGS="-m32 $(COMMON_FLAGS) -g" PATH="$(abspath $(TOOLS_DIR32))/bin:$(PATH)" \
 		$(MAKE) -C $(VRCLIENT_OBJ32)
@@ -1382,7 +1353,7 @@ dxvk32: $(DXVK_CONFIGURE_FILES32)
 VKD3D_CONFIGURE_FILES32 := $(VKD3D_OBJ32)/build.ninja
 VKD3D_CONFIGURE_FILES64 := $(VKD3D_OBJ64)/build.ninja
 
-$(VKD3D_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL32)
+$(VKD3D_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL)
 $(VKD3D_CONFIGURE_FILES32): $(VKD3D)/meson.build $(VKD3D)/build-win32.txt | $(VKD3D_OBJ32)
 	cd $(abspath $(VKD3D_OBJ32)) && \
 		PATH="$(abspath $(SRCDIR))/glslang/bin/:$(PATH)" \
@@ -1392,14 +1363,14 @@ $(VKD3D_CONFIGURE_FILES32): $(VKD3D)/meson.build $(VKD3D)/build-win32.txt | $(VK
 				--buildtype=release -Denable_standalone_d3d12=true \
 				"$(abspath $(VKD3D))"
 
-vkd3d32: SHELL = $(CONTAINER_SHELL32)
+vkd3d32: SHELL = $(CONTAINER_SHELL)
 vkd3d32: $(VKD3D_CONFIGURE_FILES32)
 	ninja -C "$(VKD3D_OBJ32)" install
 	mkdir -p "$(DST_DIR)"/lib/wine/vkd3d-proton
 	cp -af "$(VKD3D_OBJ32)/bin/d3d12.dll" "$(DST_DIR)"/lib/wine/vkd3d-proton/
 	rm -f "$(DST_DIR)"/lib/wine/vkd3d-proton/version && if test -e $(SRCDIR)/.git; then ( cd $(SRCDIR) && git submodule status -- vkd3d-proton ) > "$(DST_DIR)"/lib/wine/vkd3d-proton/version; fi
 
-$(VKD3D_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL64)
+$(VKD3D_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL)
 $(VKD3D_CONFIGURE_FILES64): $(VKD3D)/meson.build $(VKD3D)/build-win64.txt | $(VKD3D_OBJ64)
 	cd $(abspath $(VKD3D_OBJ64)) && \
 		PATH="$(abspath $(SRCDIR))/glslang/bin/:$(PATH)" \
@@ -1409,7 +1380,7 @@ $(VKD3D_CONFIGURE_FILES64): $(VKD3D)/meson.build $(VKD3D)/build-win64.txt | $(VK
 				--buildtype=release -Denable_standalone_d3d12=true \
 				"$(abspath $(VKD3D))"
 
-vkd3d64: SHELL = $(CONTAINER_SHELL64)
+vkd3d64: SHELL = $(CONTAINER_SHELL)
 vkd3d64: $(VKD3D_CONFIGURE_FILES64)
 	ninja -C "$(VKD3D_OBJ64)" install
 	mkdir -p "$(DST_DIR)"/lib64/wine/vkd3d-proton
@@ -1424,7 +1395,7 @@ vkd3d-proton: vkd3d32 vkd3d64
 #  build_vrclient64_tests
 #  build_vrclient32_tests
 
-mediaconv32: SHELL = $(CONTAINER_SHELL32)
+mediaconv32: SHELL = $(CONTAINER_SHELL)
 mediaconv32: $(MAKEFILE_DEP) gstreamer32 | $(MEDIACONV_OBJ32)
 	cd $(abspath $(MEDIACONV)) && \
 		PKG_CONFIG_ALLOW_CROSS=1 \
@@ -1432,7 +1403,7 @@ mediaconv32: $(MAKEFILE_DEP) gstreamer32 | $(MEDIACONV_OBJ32)
 		cargo build --target i686-unknown-linux-gnu --target-dir $(abspath $(MEDIACONV_OBJ32)) $(CARGO_BUILD_ARG)
 	cp -a $(abspath $(MEDIACONV_OBJ32))/i686-unknown-linux-gnu/release/libprotonmediaconverter.so $(abspath $(DST_DIR))/lib/gstreamer-1.0/
 
-mediaconv64: SHELL = $(CONTAINER_SHELL64)
+mediaconv64: SHELL = $(CONTAINER_SHELL)
 mediaconv64: $(MAKEFILE_DEP) gstreamer64 | $(MEDIACONV_OBJ64)
 	cd $(abspath $(MEDIACONV)) && \
 		PKG_CONFIG_PATH=$(abspath $(TOOLS_DIR64))/lib/pkgconfig \
