@@ -162,6 +162,20 @@ CROSSLDFLAGS   += -Wl,--file-alignment,4096
 OPTIMIZE_FLAGS := -O2 -march=nocona -mtune=core-avx2 -mfpmath=sse
 SANITY_FLAGS   := -fwrapv -fno-strict-aliasing
 DEBUG_FLAGS    := -gdwarf-2 -gstrict-dwarf
+
+ifeq ($(B),size)
+OPTIMIZE_FLAGS := -Os -march=nocona -mtune=core-avx2 -mfpmath=sse
+DEBUG_FLAGS    := -g0 -s
+LDFLAGS        += -s
+CROSSLDFLAGS   += -s
+endif
+
+ifeq ($(B),fast)
+OPTIMIZE_FLAGS := -Ofast -march=native -DNDEBUG
+LDFLAGS        += -O1
+CROSSLDFLAGS   += -O1
+endif
+
 COMMON_FLAGS    = $(DEBUG_FLAGS) $(OPTIMIZE_FLAGS) $(SANITY_FLAGS) -ffile-prefix-map=$(CCACHE_BASEDIR)=.
 COMMON_FLAGS32 := -mstackrealign
 CARGO_BUILD_ARG := --release
