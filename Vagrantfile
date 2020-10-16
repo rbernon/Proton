@@ -93,17 +93,10 @@ Vagrant.configure(2) do |config|
       #allow vagrant user to run docker
       adduser vagrant docker
 
-      #add steamrt docker
-      docker pull registry.gitlab.steamos.cloud/steamrt/soldier/sdk
-      docker image tag registry.gitlab.steamos.cloud/steamrt/soldier/sdk steam-proton-dev
-
       #allow user to run stuff in steamrt
       sysctl kernel.unprivileged_userns_clone=1
       mkdir -p /etc/sysctl.d/
       echo kernel.unprivileged_userns_clone=1 > /etc/sysctl.d/docker_user.conf
-
-      # the script below will set up the steam-runtime docker containers
-      sudo -u vagrant /home/vagrant/proton/vagrant-user-setup.sh
 
       #ensure we use only the mingw-w64 that we built
       apt-get remove -y '*mingw-w64*'

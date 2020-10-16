@@ -41,7 +41,7 @@ ifneq ($(unstripped),)
 endif
 
 CONFIGURE_CMD := ../proton/configure.sh \
-	--steam-runtime-image=steam-proton-dev \
+	--steam-runtime-image=rbernon/proton:latest \
 	--build-name="$(_build_name)"
 
 # make doesn't handle spaces well... replace them with underscores in paths
