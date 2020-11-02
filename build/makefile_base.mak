@@ -1290,6 +1290,7 @@ DXVK_CONFIGURE_FILES32 := $(DXVK_OBJ32)/build.ninja
 DXVK_CONFIGURE_FILES64 := $(DXVK_OBJ64)/build.ninja
 
 # 64bit-configure.  Remove coredata file if already configured (due to e.g. makefile changing)
+$(DXVK_CONFIGURE_FILES64): SHELL = $(CONTAINER_SHELL)
 $(DXVK_CONFIGURE_FILES64): $(MAKEFILE_DEP) $(DXVK)/build-win64.txt | $(DXVK_OBJ64)
 	if [ -e "$(abspath $(DXVK_OBJ64))"/build.ninja ]; then \
 		rm -f "$(abspath $(DXVK_OBJ64))"/meson-private/coredata.dat; \
@@ -1299,6 +1300,7 @@ $(DXVK_CONFIGURE_FILES64): $(MAKEFILE_DEP) $(DXVK)/build-win64.txt | $(DXVK_OBJ6
 		meson --prefix="$(abspath $(DXVK_OBJ64))" --cross-file "$(abspath $(DXVK))/build-win64.txt" $(MESON_STRIP_ARG) --buildtype=release "$(abspath $(DXVK_OBJ64))"
 
 # 32-bit configure.  Remove coredata file if already configured (due to e.g. makefile changing)
+$(DXVK_CONFIGURE_FILES32): SHELL = $(CONTAINER_SHELL)
 $(DXVK_CONFIGURE_FILES32): $(MAKEFILE_DEP) $(DXVK)/build-win32.txt | $(DXVK_OBJ32)
 	if [ -e "$(abspath $(DXVK_OBJ32))"/build.ninja ]; then \
 		rm -f "$(abspath $(DXVK_OBJ32))"/meson-private/coredata.dat; \
@@ -1323,6 +1325,7 @@ dxvk_configure32: $(DXVK_CONFIGURE_FILES32)
 
 dxvk: dxvk32 dxvk64
 
+dxvk64: SHELL = $(CONTAINER_SHELL)
 dxvk64: $(DXVK_CONFIGURE_FILES64)
 	env PATH="$(abspath $(SRCDIR))/glslang/bin/:$(PATH)" ninja -C "$(DXVK_OBJ64)" install
 	mkdir -p "$(DST_DIR)/lib64/wine/dxvk"
@@ -1336,6 +1339,7 @@ dxvk64: $(DXVK_CONFIGURE_FILES64)
 	rm -f "$(DST_DIR)"/lib64/wine/dxvk/version && if test -e $(SRCDIR)/.git; then ( cd $(SRCDIR) && git submodule status -- dxvk ) > "$(DST_DIR)"/lib64/wine/dxvk/version; fi
 
 
+dxvk32: SHELL = $(CONTAINER_SHELL)
 dxvk32: $(DXVK_CONFIGURE_FILES32)
 	env PATH="$(abspath $(SRCDIR))/glslang/bin/:$(PATH)" ninja -C "$(DXVK_OBJ32)" install
 	mkdir -p "$(DST_DIR)"/lib/wine/dxvk
