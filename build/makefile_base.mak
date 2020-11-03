@@ -61,12 +61,8 @@ else
 	export CCACHE_DISABLE = 1
 endif
 
-DOCKER_BASE = docker run --rm --init --privileged --cap-add=SYS_ADMIN --security-opt apparmor:unconfined \
-                                    -v $(HOME):$(HOME) -v /tmp:/tmp \
-                                    -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro  -v /etc/shadow:/etc/shadow:ro \
-                                    -w $(CURDIR) -e MAKEFLAGS -e HOME=$(HOME) -u $(shell id -u):$(shell id -g) -h $(shell hostname) \
-                                    $(DOCKER_OPTS) \
-                                    $(STEAMRT_IMAGE) /sbin/docker-init -sg --
+DOCKER_BASE = podman run --rm --init --init-path=/usr/bin/dumb-init \
+              -v $(HOME):$(HOME) -v /tmp:/tmp -w $(CURDIR) -e MAKEFLAGS -e HOME=$(HOME) $(DOCKER_OPTS) $(STEAMRT_IMAGE)
 
 STEAMRT_NAME ?= soldier
 ifeq ($(STEAMRT_NAME),soldier)
