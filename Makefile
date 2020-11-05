@@ -39,9 +39,9 @@ ifneq ($(unstripped),)
     DEPLOY_DIR := $(DEPLOY_DIR)_unstripped
 endif
 
-protonsdk_version := 0.20201124.0-0
+protonsdk_version := 0.20201124.0
 CONFIGURE_CMD := ../proton/configure.sh \
-	--steam-runtime-image=registry.gitlab.steamos.cloud/proton/sdk:$(protonsdk_version) \
+	--steam-runtime-image=rbernon/proton:$(protonsdk_version) \
 	--build-name="$(_build_name)"
 
 # make doesn't handle spaces well... replace them with underscores in paths
@@ -106,7 +106,7 @@ protonsdk:
 	+make -C proton/docker $(UNSTRIPPED) $(CCACHE_FLAG) PROTONSDK_VERSION=$(protonsdk_version) proton
 
 push-protonsdk:
-	docker login registry.gitlab.steamos.cloud
+	docker login
 	+make -C proton/docker $(UNSTRIPPED) $(CCACHE_FLAG) PROTONSDK_VERSION=$(protonsdk_version) proton push
 
 configure:

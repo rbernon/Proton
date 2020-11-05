@@ -1,7 +1,7 @@
 STEAMRT_VERSION = 0.20201124.0
 STEAMRT_URLBASE = registry.gitlab.steamos.cloud
 
-PROTONSDK_URLBASE = $(STEAMRT_URLBASE)/proton
+PROTONSDK_URLBASE = rbernon
 PROTONSDK_VERSION = $(STEAMRT_VERSION)-0
 
 # this is just for building toolchain, as we do static builds it should
@@ -117,16 +117,16 @@ $(eval $(call create-gcc-rules,x86_64,w64-mingw32))
 
 .PHONY: proton
 all: proton
-proton: BASE_IMAGE = $(STEAMRT_URLBASE)/steamrt/soldier/sdk:$(STEAMRT_VERSION)
+proton: BASE_IMAGE = $(PROTONSDK_URLBASE)/steamrt:$(STEAMRT_VERSION)
 proton: proton.Dockerfile | gcc
 	rm -rf build; mkdir -p build
 	docker build -f $< \
-	  --cache-from=$(PROTONSDK_URLBASE)/sdk:latest \
-	  -t $(PROTONSDK_URLBASE)/sdk:$(PROTONSDK_VERSION) \
-	  -t $(PROTONSDK_URLBASE)/sdk:latest \
+	  --cache-from=$(PROTONSDK_URLBASE)/proton:latest \
+	  -t $(PROTONSDK_URLBASE)/proton:$(PROTONSDK_VERSION) \
+	  -t $(PROTONSDK_URLBASE)/proton:latest \
 	  build
 
 .PHONY: push
 push:
-	docker push $(PROTONSDK_URLBASE)/sdk:$(PROTONSDK_VERSION)
-	docker push $(PROTONSDK_URLBASE)/sdk:latest
+	docker push $(PROTONSDK_URLBASE)/proton:$(PROTONSDK_VERSION)
+	docker push $(PROTONSDK_URLBASE)/proton:latest
