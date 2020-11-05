@@ -47,9 +47,10 @@ CONFIGURE_CMD := ../proton/configure.sh \
 # make doesn't handle spaces well... replace them with underscores in paths
 BUILD_DIR := "../build-$(shell echo $(_build_name) | sed -e 's/ /_/g')"
 
-all: help
+all: configure
+	+make -C $(BUILD_DIR)/ $(UNSTRIPPED) $(CCACHE_FLAG) all
 
-.PHONY: help clean configure proton install deploy module protonsdk
+.PHONY: all help clean configure proton install deploy module protonsdk
 
 help:
 	@echo "Proton Makefile instructions"
@@ -106,7 +107,6 @@ protonsdk:
 
 configure:
 	if [ ! -e $(BUILD_DIR)/Makefile ]; then mkdir -p $(BUILD_DIR); (cd $(BUILD_DIR) && $(CONFIGURE_CMD)); fi
-	+make -C $(BUILD_DIR) downloads
 
 ifeq ($(protonsdk_version),local)
 configure: protonsdk
