@@ -41,7 +41,7 @@ endif
 
 protonsdk_version := 0.20210126.1-0
 CONFIGURE_CMD := ../proton/configure.sh \
-	--steam-runtime-image=registry.gitlab.steamos.cloud/proton/soldier/sdk:$(protonsdk_version) \
+	--steam-runtime-image=rbernon/proton:$(protonsdk_version) \
 	--build-name="$(_build_name)"
 
 # make doesn't handle spaces well... replace them with underscores in paths
