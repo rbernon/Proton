@@ -1,6 +1,16 @@
 SRC := $(abspath $(SRCDIR))
 OBJ := $(abspath $(CURDIR))
 
+ifneq ($(V),1)
+.SILENT:
+MAKEFLAGS += --quiet --no-print-directory
+--quiet? := --quiet
+else
+MFLAGS += V=1 VERBOSE=1
+-v? := -v
+--verbose? := --verbose
+endif
+
 ##
 ## Nested make
 ##
