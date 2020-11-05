@@ -1,5 +1,6 @@
 #See help target below for documentation
 
+build_name := proton-local$(if $(B),-$(B))
 ifeq ($(build_name),)
     _build_name := $(shell git symbolic-ref --short HEAD 2>/dev/null)-local
 else
@@ -34,6 +35,7 @@ ifneq ($(module),)
 	endif
 endif
 
+unstripped := 1
 ifneq ($(unstripped),)
     UNSTRIPPED := UNSTRIPPED_BUILD=1
     DEPLOY_DIR := $(DEPLOY_DIR)_unstripped
@@ -45,7 +47,7 @@ CONFIGURE_CMD := ../proton/configure.sh \
 	--build-name="$(_build_name)"
 
 # make doesn't handle spaces well... replace them with underscores in paths
-BUILD_DIR := "../build-$(shell echo $(_build_name) | sed -e 's/ /_/g')"
+BUILD_DIR := "../build-proton$(if $(B),-$(B))"
 
 all: configure
 	+make -C $(BUILD_DIR)/ $(UNSTRIPPED) $(CCACHE_FLAG) all
