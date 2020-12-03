@@ -61,8 +61,14 @@ else
 	export CCACHE_DISABLE = 1
 endif
 
-DOCKER_BASE = podman run --rm --init --init-path=/usr/bin/dumb-init \
-              -v $(HOME):$(HOME) -v /tmp:/tmp -w $(CURDIR) -e MAKEFLAGS -e HOME=$(HOME) $(DOCKER_OPTS) $(STEAMRT_IMAGE)
+ifeq ($(USE_PODMAN),1)
+	DOCKER_BASE = podman run --rm --init --init-path=/usr/bin/dumb-init \
+              	  -v $(HOME):$(HOME) -v /tmp:/tmp -w $(CURDIR) -e MAKEFLAGS -e HOME=$(HOME) $(DOCKER_OPTS) $(STEAMRT_IMAGE)
+else
+	DOCKER_BASE = docker run --rm --init \
+				  -e USERID=$(shell id -u) -e USER=$(USER) -u $(shell id -u):$(shell id -g) \
+              	  -v $(HOME):$(HOME) -v /tmp:/tmp -w $(CURDIR) -e MAKEFLAGS -e HOME=$(HOME) $(DOCKER_OPTS) $(STEAMRT_IMAGE)
+endif
 
 STEAMRT_NAME ?= soldier
 ifeq ($(STEAMRT_NAME),soldier)
