@@ -678,10 +678,12 @@ $(eval $(call rules-meson,dxvk,32))
 $(eval $(call rules-meson,dxvk,64))
 
 $(OBJ)/.dxvk-post-build64:
+	mkdir -p "$(DST_DIR)"/lib64/wine/dxvk
 	rm -f "$(DST_DIR)"/lib64/wine/dxvk/version && if test -e $(SRCDIR)/.git; then ( cd $(SRCDIR) && git submodule status -- dxvk ) > "$(DST_DIR)"/lib64/wine/dxvk/version; fi
 	touch $@
 
 $(OBJ)/.dxvk-post-build32:
+	mkdir -p "$(DST_DIR)"/lib/wine/dxvk
 	rm -f "$(DST_DIR)"/lib/wine/dxvk/version && if test -e $(SRCDIR)/.git; then ( cd $(SRCDIR) && git submodule status -- dxvk ) > "$(DST_DIR)"/lib/wine/dxvk/version; fi
 	touch $@
 
