@@ -716,10 +716,12 @@ $(OBJ)/.vkd3d-proton-post-source:
 	touch $@
 
 $(OBJ)/.vkd3d-proton-post-build32:
+	mkdir -p "$(DST_DIR)"/lib/wine/vkd3d-proton
 	rm -f "$(DST_DIR)"/lib/wine/vkd3d-proton/version && if test -e $(SRCDIR)/.git; then ( cd $(SRCDIR) && git submodule status -- vkd3d-proton ) > "$(DST_DIR)"/lib/wine/vkd3d-proton/version; fi
 	touch $@
 
 $(OBJ)/.vkd3d-proton-post-build64:
+	mkdir -p "$(DST_DIR)"/lib64/wine/vkd3d-proton
 	rm -f "$(DST_DIR)"/lib64/wine/vkd3d-proton/version && if test -e $(SRCDIR)/.git; then ( cd $(SRCDIR) && git submodule status -- vkd3d-proton ) > "$(DST_DIR)"/lib64/wine/vkd3d-proton/version; fi
 	touch $@
 
