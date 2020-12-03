@@ -12,7 +12,7 @@ RUN wget -qO- https://github.com/mirror/mingw-w64/archive/v@MINGW_VERSION@.tar.g
   --host=@ARCH@-w64-mingw32 \
   --enable-wildcard \
   MAKEINFO=true || cat config.log \
-&& make --quiet -j8 MAKEINFO=true \
-&& make --quiet -j8 MAKEINFO=true install-strip DESTDIR=/opt \
+&& make --quiet -j$(nproc) MAKEINFO=true \
+&& make --quiet -j$(nproc) MAKEINFO=true install-strip DESTDIR=/opt \
 && rm -rf /opt/usr/share/doc /opt/usr/share/info /opt/usr/share/man \
 && rm -rf /tmp/mingw-w64-@MINGW_VERSION@
