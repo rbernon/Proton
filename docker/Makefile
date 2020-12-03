@@ -72,7 +72,9 @@ binutils-$(1)-$(2): binutils-$(1)-$(2).Dockerfile | build-base
 endef
 
 $(eval $(call create-binutils-rules,i686,w64-mingw32))
+$(eval $(call create-binutils-rules,i686,linux-gnu))
 $(eval $(call create-binutils-rules,x86_64,w64-mingw32))
+$(eval $(call create-binutils-rules,x86_64,linux-gnu))
 
 define create-mingw-rules
 .PHONY: mingw-$(2)-$(1)
@@ -98,6 +100,7 @@ $(eval $(call create-mingw-rules,x86_64,pthreads))
 $(eval $(call create-mingw-rules,x86_64,widl))
 
 GCC_TARGET_FLAGS_w64-mingw32 = --disable-shared
+GCC_TARGET_FLAGS_linux-gnu =
 
 define create-gcc-rules
 .PHONY: gcc-$(1)-$(2)
@@ -112,6 +115,8 @@ gcc-$(1)-$(2): gcc-$(1)-$(2).Dockerfile | mingw
 	  build
 endef
 
+$(eval $(call create-gcc-rules,i686,linux-gnu))
+$(eval $(call create-gcc-rules,x86_64,linux-gnu))
 $(eval $(call create-gcc-rules,i686,w64-mingw32))
 $(eval $(call create-gcc-rules,x86_64,w64-mingw32))
 
