@@ -64,6 +64,15 @@ function configure() {
     info "No build name specified, using default: $build_name"
   fi
 
+  local use_podman="$arg_use_podman"
+  if [[ -n $use_podman ]]; then
+    use_podman=1
+    info "Using Podman for containers"
+  else
+    use_podman=0
+    info "Using Docker for containers"
+  fi
+
   ## Write out config
   # Don't die after this point or we'll have rather unhelpfully deleted the Makefile
   [[ ! -e "$MAKEFILE" ]] || rm "$MAKEFILE"
@@ -74,6 +83,7 @@ function configure() {
     echo ""
     echo "SRCDIR     := $(escape_for_make "$srcdir")"
     echo "BUILD_NAME := $(escape_for_make "$build_name")"
+    echo "USE_PODMAN := $(escape_for_make "$use_podman")"
 
     # SteamRT
     echo "STEAMRT_NAME  := $(escape_for_make "$steamrt_name")"
@@ -99,6 +109,7 @@ function configure() {
 arg_steamrt="soldier"
 arg_steamrt_image=""
 arg_no_steamrt=""
+arg_use_podman=""
 arg_build_name=""
 arg_docker_opts=""
 arg_help=""
@@ -148,6 +159,8 @@ function parse_args() {
       arg_steamrt="$val"
     elif [[ $arg = --no-steam-runtime ]]; then
       arg_no_steamrt=1
+    elif [[ $arg = --use-podman ]]; then
+      arg_podman=1
     else
       err "Unrecognized option $arg"
       return 1

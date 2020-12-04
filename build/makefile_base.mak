@@ -61,9 +61,15 @@ else
 	export CCACHE_DISABLE = 1
 endif
 
+ifeq ($(USE_PODMAN),1)
+DOCKER_BASE = podman run --rm -e HOME \
+                -v $(HOME)/.ccache:$(HOME)/.ccache -v $(SRC):$(SRC) -v $(OBJ):$(OBJ) -w $(OBJ) -e MAKEFLAGS \
+                $(DOCKER_OPTS) $(STEAMRT_IMAGE)
+else
 DOCKER_BASE = docker run --rm -e HOME -e USER -e USERID=$(shell id -u) -u $(shell id -u):$(shell id -g) \
                 -v $(HOME)/.ccache:$(HOME)/.ccache -v $(SRC):$(SRC) -v $(OBJ):$(OBJ) -w $(OBJ) -e MAKEFLAGS \
                 $(DOCKER_OPTS) $(STEAMRT_IMAGE)
+endif
 
 STEAMRT_NAME ?= soldier
 ifeq ($(STEAMRT_NAME),soldier)
