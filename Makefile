@@ -1,5 +1,6 @@
 #See help target below for documentation
 
+build_name := proton-local$(if $(B),-$(B))
 ifeq ($(build_name),)
     _build_name := $(shell git symbolic-ref --short HEAD 2>/dev/null)-local
 else
@@ -14,7 +15,7 @@ endif
 override _build_name := $(shell echo $(_build_name) | tr -dc '[:alnum:] ._-')
 
 # make doesn't handle spaces well... replace them with underscores in paths
-BUILD_DIR := "build-$(shell echo $(_build_name) | sed -e 's/ /_/g')"
+BUILD_DIR := "build-proton$(if $(B),-$(B))"
 STEAM_DIR := $(HOME)/.steam/root
 
 ifeq ($(build_name),)
@@ -36,6 +37,7 @@ ifneq ($(module),)
 	endif
 endif
 
+unstripped := 1
 ifneq ($(unstripped),)
     UNSTRIPPED := UNSTRIPPED_BUILD=1
     DEPLOY_DIR := $(DEPLOY_DIR)_unstripped
@@ -104,6 +106,7 @@ help:
 	@echo ""
 	@echo "Running out of disk space in the VM? See resize-vagrant-disk.sh"
 
+disable_vagrant := 1
 ifeq ($(disable_vagrant),1)
 VAGRANT_SHELL := $(SHELL)
 VAGRANT_DIR := vagrant_share

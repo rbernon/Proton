@@ -127,6 +127,7 @@ test-container:
 # Many of the configure steps below depend on the makefile itself, such that they are dirtied by changing the recipes
 # that create them.  This can be annoying when working on the makefile, building with NO_MAKEFILE_DEPENDENCY=1 disables
 # this.
+NO_MAKEFILE_DEPENDENCY := 1
 MAKEFILE_DEP := $(MAKEFILE_LIST)
 ifeq ($(NO_MAKEFILE_DEPENDENCY),1)
 MAKEFILE_DEP :=
