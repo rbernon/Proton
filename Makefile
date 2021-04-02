@@ -123,7 +123,7 @@ proton: configure
 install: configure
 	vagrant ssh -c 'make -C $(BUILD_DIR)/ $(UNSTRIPPED) $(CCACHE_FLAG) STEAM_DIR=/vagrant/ install'
 	mkdir -p $(STEAM_DIR)/compatibilitytools.d/
-	rm -rf $(STEAM_DIR)/compatibilitytools.d/files/ #remove proton's internal files, but preserve user_settings etc from top-level
+	rm -rf $(STEAM_DIR)/compatibilitytools.d/$(_build_name)/files/ #remove proton's internal files, but preserve user_settings etc from top-level
 	cp -Rf --no-dereference --preserve=mode,links vagrant_share/compatibilitytools.d/$(_build_name) $(STEAM_DIR)/compatibilitytools.d/
 	echo "Proton installed to your local Steam installation"
 
