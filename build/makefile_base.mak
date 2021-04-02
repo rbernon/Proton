@@ -342,19 +342,19 @@ dist: $(DIST_TARGETS) all-dist dist_wineopenxr | $(DST_DIR)
 
 deploy: dist | $(filter-out dist deploy install redist,$(MAKECMDGOALS))
 	mkdir -p $(DEPLOY_DIR)
-	cp -af --no-dereference --preserve=mode,links $(DEPLOY_COPY_TARGETS) $(DEPLOY_DIR)
+	rsync --delete -arx $(DEPLOY_COPY_TARGETS) $(DEPLOY_DIR)
 	python3 $(STEAMPIPE_FIXUPS_PY) process $(DEPLOY_DIR)
 
 install: dist | $(filter-out dist deploy install redist,$(MAKECMDGOALS))
 	if [ ! -d $(STEAM_DIR) ]; then echo >&2 "!! "$(STEAM_DIR)" does not exist, cannot install"; return 1; fi
 	mkdir -p $(STEAM_DIR)/compatibilitytools.d/$(BUILD_NAME)
-	cp -af --no-dereference --preserve=mode,links $(DST_BASE)/* $(STEAM_DIR)/compatibilitytools.d/$(BUILD_NAME)
+	rsync --delete -arx $(DST_BASE)/* $(STEAM_DIR)/compatibilitytools.d/$(BUILD_NAME)
 	@echo "Installed Proton to "$(STEAM_DIR)/compatibilitytools.d/$(BUILD_NAME)
 	@echo "You may need to restart Steam to select this tool"
 
 redist: dist | $(filter-out dist deploy install redist,$(MAKECMDGOALS))
 	mkdir -p $(REDIST_DIR)
-	cp -af --no-dereference --preserve=mode,links $(REDIST_COPY_TARGETS) $(REDIST_DIR)
+	rsync --delete -arx $(REDIST_COPY_TARGETS) $(REDIST_DIR)
 
 .PHONY: module32 module64 module
 
