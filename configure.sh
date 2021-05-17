@@ -107,7 +107,7 @@ function configure() {
 #
 
 arg_steamrt="soldier"
-arg_protonsdk_image="registry.gitlab.steamos.cloud/proton/soldier/sdk:0.20210126.1-1"
+arg_protonsdk_image="registry.gitlab.steamos.cloud/proton/soldier/sdk:0.20210505.0-dev"
 arg_no_protonsdk=""
 arg_use_podman=""
 arg_build_name=""
